@@ -124,7 +124,7 @@ func (cols *Cols) Rows(opts ...Options) ([]string, error) {
 				if cellCol == cols.curCol {
 					colCell := xlsxC{}
 					_ = decoder.DecodeElement(&colCell, &xmlElement)
-					val, _ := colCell.getValueFrom(cols.f, d, cols.rawCellValue)
+					val, _ := colCell.getValueFrom(cols.f, d, optsToParseFlags(parseOptions(opts...)))
 					rows = append(rows, val)
 				}
 			}

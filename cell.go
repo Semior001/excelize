@@ -63,7 +63,7 @@ var cellTypes = map[string]CellType{
 // the same in a merged range.
 func (f *File) GetCellValue(sheet, axis string, opts ...Options) (string, error) {
 	return f.getCellStringFunc(sheet, axis, func(x *xlsxWorksheet, c *xlsxC) (string, bool, error) {
-		val, err := c.getValueFrom(f, f.sharedStringsReader(), parseOptions(opts...).RawCellValue)
+		val, err := c.getValueFrom(f, f.sharedStringsReader(), optsToParseFlags(parseOptions(opts...)))
 		return val, true, err
 	})
 }

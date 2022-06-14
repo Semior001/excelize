@@ -80,6 +80,7 @@ type charsetTranscoderFn func(charset string, input io.Reader) (rdr io.Reader, e
 type Options struct {
 	Password          string
 	RawCellValue      bool
+	RawFormulas       bool
 	UnzipSizeLimit    int64
 	UnzipXMLSizeLimit int64
 }
@@ -508,5 +509,18 @@ func (f *File) setContentTypePartProjectExtensions(contentType string) {
 			Extension:   "bin",
 			ContentType: ContentTypeVBA,
 		})
+	}
+}
+
+// parseFlags defines parameters for reading values from the sheet.
+type parseFlags struct {
+	RawCellValue bool
+	RawFormulas  bool
+}
+
+func optsToParseFlags(opts *Options) parseFlags {
+	return parseFlags{
+		RawCellValue: opts.RawCellValue,
+		RawFormulas:  opts.RawFormulas,
 	}
 }

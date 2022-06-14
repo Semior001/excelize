@@ -364,7 +364,7 @@ func TestGetCellType(t *testing.T) {
 func TestGetValueFrom(t *testing.T) {
 	f := NewFile()
 	c := xlsxC{T: "s"}
-	value, err := c.getValueFrom(f, f.sharedStringsReader(), false)
+	value, err := c.getValueFrom(f, f.sharedStringsReader(), parseFlags{})
 	assert.NoError(t, err)
 	assert.Equal(t, "", value)
 }

@@ -68,15 +68,15 @@ func (f *File) GetRows(sheet string, opts ...Options) ([][]string, error) {
 
 // Rows defines an iterator to a sheet.
 type Rows struct {
-	err                     error
-	curRow, seekRow         int
-	needClose, rawCellValue bool
-	sheet                   string
-	f                       *File
-	tempFile                *os.File
-	sst                     *xlsxSST
-	decoder                 *xml.Decoder
-	token                   xml.Token
+	err             error
+	curRow, seekRow int
+	needClose       bool
+	sheet           string
+	f               *File
+	tempFile        *os.File
+	sst             *xlsxSST
+	decoder         *xml.Decoder
+	token           xml.Token
 }
 
 // Next will return true if find the next row element.
@@ -129,7 +129,7 @@ func (rows *Rows) Columns(opts ...Options) ([]string, error) {
 	}
 	var rowIterator rowXMLIterator
 	var token xml.Token
-	rows.rawCellValue, rows.sst = parseOptions(opts...).RawCellValue, rows.f.sharedStringsReader()
+	rows.sst = rows.f.sharedStringsReader()
 	for {
 		if rows.token != nil {
 			token = rows.token
@@ -151,7 +151,7 @@ func (rows *Rows) Columns(opts ...Options) ([]string, error) {
 					return rowIterator.columns, rowIterator.err
 				}
 			}
-			if rows.rowXMLHandler(&rowIterator, &xmlElement, rows.rawCellValue); rowIterator.err != nil {
+			if rows.rowXMLHandler(&rowIterator, &xmlElement, optsToParseFlags(parseOptions(opts...))); rowIterator.err != nil {
 				rows.token = nil
 				return rowIterator.columns, rowIterator.err
 			}
@@ -191,7 +191,7 @@ type rowXMLIterator struct {
 }
 
 // rowXMLHandler parse the row XML element of the worksheet.
-func (rows *Rows) rowXMLHandler(rowIterator *rowXMLIterator, xmlElement *xml.StartElement, raw bool) {
+func (rows *Rows) rowXMLHandler(rowIterator *rowXMLIterator, xmlElement *xml.StartElement, flags parseFlags) {
 	if rowIterator.inElement == "c" {
 		rowIterator.cellCol++
 		colCell := xlsxC{}
@@ -202,7 +202,7 @@ func (rows *Rows) rowXMLHandler(rowIterator *rowXMLIterator, xmlElement *xml.Sta
 			}
 		}
 		blank := rowIterator.cellCol - len(rowIterator.columns)
-		if val, _ := colCell.getValueFrom(rows.f, rows.sst, raw); val != "" || colCell.F != nil {
+		if val, _ := colCell.getValueFrom(rows.f, rows.sst, flags); val != "" || colCell.F != nil {
 			rowIterator.columns = append(appendSpace(blank, rowIterator.columns), val)
 		}
 	}
@@ -425,12 +425,17 @@ func (f *File) sharedStringsReader() *xlsxSST {
 // getValueFrom return a value from a column/row cell, this function is
 // intended to be used with for range on rows an argument with the spreadsheet
 // opened file.
-func (c *xlsxC) getValueFrom(f *File, d *xlsxSST, raw bool) (string, error) {
+func (c *xlsxC) getValueFrom(f *File, d *xlsxSST, flags parseFlags) (string, error) {
 	f.Lock()
 	defer f.Unlock()
+
+	if c.F != nil && flags.RawFormulas {
+		return c.F.Content, nil
+	}
+
 	switch c.T {
 	case "b":
-		if !raw {
+		if !flags.RawCellValue {
 			if c.V == "1" {
 				return "TRUE", nil
 			}
@@ -438,35 +443,35 @@ func (c *xlsxC) getValueFrom(f *File, d *xlsxSST, raw bool) (string, error) {
 				return "FALSE", nil
 			}
 		}
-		return f.formattedValue(c.S, c.V, raw), nil
+		return f.formattedValue(c.S, c.V, flags.RawCellValue), nil
 	case "s":
 		if c.V != "" {
 			xlsxSI := 0
 			xlsxSI, _ = strconv.Atoi(c.V)
 			if _, ok := f.tempFiles.Load(defaultXMLPathSharedStrings); ok {
-				return f.formattedValue(c.S, f.getFromStringItem(xlsxSI), raw), nil
+				return f.formattedValue(c.S, f.getFromStringItem(xlsxSI), flags.RawCellValue), nil
 			}
 			if len(d.SI) > xlsxSI {
-				return f.formattedValue(c.S, d.SI[xlsxSI].String(), raw), nil
+				return f.formattedValue(c.S, d.SI[xlsxSI].String(), flags.RawCellValue), nil
 			}
 		}
-		return f.formattedValue(c.S, c.V, raw), nil
+		return f.formattedValue(c.S, c.V, flags.RawCellValue), nil
 	case "str":
-		return f.formattedValue(c.S, c.V, raw), nil
+		return f.formattedValue(c.S, c.V, flags.RawCellValue), nil
 	case "inlineStr":
 		if c.IS != nil {
-			return f.formattedValue(c.S, c.IS.String(), raw), nil
+			return f.formattedValue(c.S, c.IS.String(), flags.RawCellValue), nil
 		}
-		return f.formattedValue(c.S, c.V, raw), nil
+		return f.formattedValue(c.S, c.V, flags.RawCellValue), nil
 	default:
-		if isNum, precision := isNumeric(c.V); isNum && !raw {
+		if isNum, precision := isNumeric(c.V); isNum && !flags.RawCellValue {
 			if precision == 0 {
 				c.V = roundPrecision(c.V, 15)
 			} else {
 				c.V = roundPrecision(c.V, -1)
 			}
 		}
-		return f.formattedValue(c.S, c.V, raw), nil
+		return f.formattedValue(c.S, c.V, flags.RawCellValue), nil
 	}
 }
 

@@ -865,11 +865,27 @@ func TestDuplicateMergeCells(t *testing.T) {
 	assert.EqualError(t, f.duplicateMergeCells("SheetN", ws, 1, 2), "sheet SheetN is not exist")
 }
 
+func TestGetRawFormula(t *testing.T) {
+	c := &xlsxC{
+		T: "n",
+		F: &xlsxF{Content: "SUM(A3:A23,B3:B23)"},
+		V: "1234",
+	}
+	f := NewFile()
+	d := &xlsxSST{}
+	val, err := c.getValueFrom(f, d, parseFlags{RawFormulas: true})
+	assert.NoError(t, err)
+	assert.Equal(t, "SUM(A3:A23,B3:B23)", val)
+	val, err = c.getValueFrom(f, d, parseFlags{RawFormulas: false})
+	assert.NoError(t, err)
+	assert.Equal(t, "1234", val)
+}
+
 func TestGetValueFromInlineStr(t *testing.T) {
 	c := &xlsxC{T: "inlineStr"}
 	f := NewFile()
 	d := &xlsxSST{}
-	val, err := c.getValueFrom(f, d, false)
+	val, err := c.getValueFrom(f, d, parseFlags{})
 	assert.NoError(t, err)
 	assert.Equal(t, "", val)
 }
@@ -889,7 +905,7 @@ func TestGetValueFromNumber(t *testing.T) {
 		"2.220000ddsf0000000002-r": "2.220000ddsf0000000002-r",
 	} {
 		c.V = input
-		val, err := c.getValueFrom(f, d, false)
+		val, err := c.getValueFrom(f, d, parseFlags{})
 		assert.NoError(t, err)
 		assert.Equal(t, expected, val)
 	}
